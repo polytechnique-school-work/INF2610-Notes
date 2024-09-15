@@ -5,6 +5,7 @@
 - [1. Concepts généraux](./1-concepts-généraux.md)
 - [2. Processus](./2-processus.md)
 - [3. Threads](./3-threads.md)
+- [4. Communication interprocessus](./4-communication-interprocessus.md)
 
 #### Disclaimer
 
