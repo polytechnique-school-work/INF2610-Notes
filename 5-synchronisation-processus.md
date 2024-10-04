@@ -216,3 +216,189 @@ lock = 0;
 
 // Section restante
 ```
+
+### 5. Sémaphores (Mutex) en C
+
+## Introduction
+
+Les sémaphores et les mutex sont des outils de synchronisation qui permettent de contrôler l'accès aux ressources partagées dans un environnement multithread. Ils sont utilisés pour éviter des conditions de course (race conditions) et assurer que seules certaines parties du code accèdent à une ressource critique à un moment donné.
+
+### Différence entre Sémaphore et Mutex
+
+- **Sémaphore** : Compteur qui contrôle l'accès à une ressource partagée. Il peut permettre l'accès à plusieurs threads simultanément (compteur > 1).
+- **Mutex** : Abréviation de "Mutual Exclusion", il s'agit d'un verrou binaire utilisé pour protéger une ressource partagée, en permettant uniquement à un thread d'accéder à cette ressource à la fois. LES MUTEX SERVENT À ASSURER L'EXCLUSION MUTUELLE.
+
+## Utilisation des Sémaphores en C
+
+Le standard POSIX propose une API pour utiliser les sémaphores. Voici les principales fonctions utilisées pour manipuler un sémaphore :
+
+- `sem_init()`: Initialiser un sémaphore.
+- `sem_wait()`: Décrémenter un sémaphore (attente).
+- `sem_post()`: Incrémenter un sémaphore (signal).
+- `sem_destroy()`: Détruire un sémaphore.
+
+### Implémentation sémaphore en C
+
+```c
+// POUR UN P
+P(Semaphore *S) {
+  Disable_Interruption();
+  while(TSL(S->lock) != 0);
+  if(S->count > 0) {
+    S->count--;
+    S->lock = 0;
+    Enable_Interruption();
+    return;
+  }
+
+  // Processus dans la file d'attente (il va dormir)
+  Remove (Readyqueue, S->q);
+  S->lock = 0;
+  Enable_Interruption();
+
+  // Trouve un autre processus à exécuter
+  Redispatch();
+}
+
+// POUR UN V
+V(Semaphore *S) {
+  Disable_Interruption();
+  while(TSL(S->lock) != 0);
+  if(S->q is empty) {
+    S->count++;
+    S->lock=0;
+    Enable_Interruption();
+    return;
+  }
+
+
+  // Processus dans la file d'attente (il va dormir)
+  Remove (S->q, Readyqueue);
+  S->lock = 0;
+  Enable_Interruption();
+
+  // Trouve un autre processus à exécuter
+  Redispatch();
+}
+```
+
+### Exemple : Sémaphore en C
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+#define N_THREADS 5
+
+sem_t semaphore;
+
+void* routine(void* arg) {
+    sem_wait(&semaphore); // Attendre que le sémaphore soit disponible
+    printf("Thread %d entre dans la section critique\n", *(int*)arg);
+    sleep(1); // Simulation d'une opération dans la section critique
+    printf("Thread %d quitte la section critique\n", *(int*)arg);
+    sem_post(&semaphore); // Libérer le sémaphore
+    return NULL;
+}
+
+int main() {
+    pthread_t threads[N_THREADS];
+    int thread_ids[N_THREADS];
+
+    // Initialisation du sémaphore à 1 (un seul thread peut accéder à la ressource à la fois)
+    sem_init(&semaphore, 0, 1);
+
+    // Création des threads
+    for (int i = 0; i < N_THREADS; i++) {
+        thread_ids[i] = i + 1;
+        pthread_create(&threads[i], NULL, &routine, &thread_ids[i]);
+    }
+
+    // Attendre que tous les threads terminent
+    for (int i = 0; i < N_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Destruction du sémaphore
+    sem_destroy(&semaphore);
+
+    return 0;
+}
+```
+
+#### Explication
+
+- Initialisation : `sem_init(&semaphore, 0, 1)` initialise le sémaphore avec une valeur de 1, indiquant qu'un seul thread peut entrer dans la section critique à la fois.
+- Accès à la section critique : Chaque thread appelle `sem_wait(&semaphore)` avant d'entrer dans la section critique, ce qui décrémente le sémaphore. Si le sémaphore est à 0, le thread doit attendre qu'un autre thread le libère.
+- Libération : Après avoir terminé dans la section critique, le thread appelle `sem_post(&semaphore)` pour incrémenter le sémaphore, permettant ainsi à un autre thread d'entrer dans la section critique.
+
+### Utilisation des Mutex en C
+
+Les mutex sont similaires aux sémaphores binaires mais avec une différence importante : seuls les threads qui possèdent un mutex peuvent le libérer. Voici les principales fonctions pour manipuler un mutex :
+
+- `pthread_mutex_init()`: Initialiser un mutex.
+- `pthread_mutex_lock()`: Verrouiller le mutex (attendre si déjà verrouillé).
+- `pthread_mutex_unlock()`: Déverrouiller le mutex.
+- `pthread_mutex_destroy()`: Détruire le mutex.
+
+### Exemple : Mutex en C
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define N_THREADS 5
+
+pthread_mutex_t mutex;
+
+void* routine(void* arg) {
+    pthread_mutex_lock(&mutex); // Verrouiller le mutex
+    printf("Thread %d entre dans la section critique\n", *(int*)arg);
+    sleep(1); // Simulation d'une opération dans la section critique
+    printf("Thread %d quitte la section critique\n", *(int*)arg);
+    pthread_mutex_unlock(&mutex); // Libérer le mutex
+    return NULL;
+}
+
+int main() {
+    pthread_t threads[N_THREADS];
+    int thread_ids[N_THREADS];
+
+    // Initialisation du mutex
+    pthread_mutex_init(&mutex, NULL);
+
+    // Création des threads
+    for (int i = 0; i < N_THREADS; i++) {
+        thread_ids[i] = i + 1;
+        pthread_create(&threads[i], NULL, &routine, &thread_ids[i]);
+    }
+
+    // Attendre que tous les threads terminent
+    for (int i = 0; i < N_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Destruction du mutex
+    pthread_mutex_destroy(&mutex);
+
+    return 0;
+}
+```
+
+#### Explication
+
+1. Initialisation : `pthread_mutex_init(&mutex, NULL)` initialise un mutex.
+2. Accès à la section critique : Chaque thread doit verrouiller le mutex avec `pthread_mutex_lock(&mutex)` avant d'entrer dans la section critique.
+3. Libération : Après avoir terminé, le thread libère le mutex avec `pthread_mutex_unlock(&mutex)`, permettant à un autre thread de prendre le contrôle.
+
+### Conclusion
+
+Les sémaphores et les mutex sont essentiels pour la gestion de la synchronisation dans les programmes multithread. Les sémaphores sont utiles pour gérer un nombre limité de ressources, tandis que les mutex sont plus appropriés lorsque vous voulez assurer une exclusion mutuelle stricte.
+
+### Opération P et V
+
+- Opération **P** : `int sem_wait(sem_t *sem)`
+- Opération **V** : `int sem_post(sem_t *sem)`
